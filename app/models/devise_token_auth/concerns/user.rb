@@ -1,3 +1,5 @@
+require 'bcrypt'
+
 module DeviseTokenAuth::Concerns::User
   extend ActiveSupport::Concern
 
@@ -5,7 +7,7 @@ module DeviseTokenAuth::Concerns::User
     @token_equality_cache ||= {}
 
     key = "#{token_hash}/#{token}"
-    result = @token_equality_cache[key] ||= (BCrypt::Password.new(token_hash) == token)
+    result = @token_equality_cache[key] ||= (::BCrypt::Password.new(token_hash) == token)
     if @token_equality_cache.size > 10000
       @token_equality_cache = {}
     end
@@ -147,7 +149,7 @@ module DeviseTokenAuth::Concerns::User
       Time.parse(updated_at) > Time.now - DeviseTokenAuth.batch_request_buffer_throttle and
 
       # ensure that the token is valid
-      BCrypt::Password.new(last_token) == token
+      ::BCrypt::Password.new(last_token) == token
     )
   end
 
@@ -157,7 +159,7 @@ module DeviseTokenAuth::Concerns::User
     client_id  ||= SecureRandom.urlsafe_base64(nil, false)
     last_token ||= nil
     token        = SecureRandom.urlsafe_base64(nil, false)
-    token_hash   = BCrypt::Password.create(token)
+    token_hash   = ::BCrypt::Password.create(token)
     expiry       = (Time.now + DeviseTokenAuth.token_lifespan).to_i
 
     if self.tokens[client_id] and self.tokens[client_id]['token']
@@ -198,7 +200,7 @@ module DeviseTokenAuth::Concerns::User
     args[:uid]    = self.uid
     args[:expiry] = self.tokens[args[:client_id]]['expiry']
 
-    generate_url(base_url, args)
+    DeviseTokenAuth::Url.generate(base_url, args)
   end
 
 
@@ -221,19 +223,6 @@ module DeviseTokenAuth::Concerns::User
 
 
   protected
-
-
-  def generate_url(url, params = {})
-    uri = URI(url)
-
-    res = "#{uri.scheme}://#{uri.host}"
-    res += ":#{uri.port}" if (uri.port and uri.port != 80 and uri.port != 443)
-    res += "#{uri.path}" if uri.path
-    res += "?#{params.to_query}"
-    res += "##{uri.fragment}" if uri.fragment
-
-    return res
-  end
 
   # only validate unique email among users that registered by email
   def unique_email_user
